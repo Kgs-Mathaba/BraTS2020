@@ -98,3 +98,13 @@ plt.imshow(test_mask[:, :, n_slice], cmap="gray")
 plt.title("Mask")
 
 plt.show()
+
+
+##################################################
+# PART 2: Explore the process of combining images to channels and divide them to patches
+# Includes...
+# Combining all 4 images to 4 channels of a numpy array.
+#
+################################################
+# Flair, T1CE, annd T2 have the most information
+# Combine t1ce, t2, and flair into single multichannel image
