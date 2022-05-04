@@ -74,7 +74,7 @@ test_mask[test_mask == 4] = 3
 import random
 
 n_slice = random.randint(0, test_mask.shape[2])
-print("n_slice = ", n_slice)
+# print("n_slice = ", n_slice)
 plt.figure(figsize=(12, 8))
 
 plt.subplot(231)
@@ -108,3 +108,163 @@ plt.show()
 ################################################
 # Flair, T1CE, annd T2 have the most information
 # Combine t1ce, t2, and flair into single multichannel image
+
+combined_x = np.stack([test_image_flair, test_image_t1ce, test_image_t2], axis=3)
+print("combined x shape = ", combined_x.shape)
+
+# Crop to size to be divisible by 64 so we can later extract 64x64x64 patches
+# cropping x,y and z
+# combined_x = combined_x[24:216, 24:216, 13:141]
+
+combined_x = combined_x[56:184, 56:184, 13:141]  # Crop to 128x128x128x4
+
+# Do the same for mask
+test_mask = test_mask[56:184, 56:184, 13:141]
+n_slice = random.randint(0, test_mask.shape[2])
+
+plt.figure(figsize=(12, 8))
+
+plt.subplot(231)
+plt.imshow(test_image_flair[:, :, n_slice], cmap="gray")
+plt.title("Image Flair")
+
+plt.subplot(232)
+plt.imshow(test_image_t1[:, :, n_slice], cmap="gray")
+plt.title("Image t1")
+
+plt.subplot(233)
+plt.imshow(test_image_t1ce[:, :, n_slice], cmap="gray")
+plt.title("Image t1ce")
+
+plt.subplot(234)
+plt.imshow(test_image_t2[:, :, n_slice], cmap="gray")
+plt.title("Image t2")
+
+plt.subplot(235)
+plt.imshow(test_mask[:, :, n_slice], cmap="gray")
+plt.title("Mask")
+
+plt.show()
+
+imsave("BraTS2020_TrainingData/combined255.tif", combined_x)
+np.save("BraTS2020_TrainingData/combined255.npy", combined_x)
+# Verify image is being read properly
+my_image = np.load("BraTS2020_TrainingData/combined255.npy")
+print("my image shape = ", my_image.shape)
+
+test_mask = to_categorical(test_mask, num_classes=4)
+####################################################################
+#####################################
+# End of understanding the dataset. Now get it organized.
+#####################################
+
+# Now let us apply the same as above to all the images...
+# Merge channels, crop, patchify, save
+# GET DATA READY =  GENERATORS OR OTHERWISE
+
+# Keras datagenerator does not support 3d
+### images lists
+# t1_list = sorted(glob.glob(TRAIN_DATASET_PATH + "*/*t1.nii"))
+t2_list = sorted(glob.glob(TRAIN_DATASET_PATH + "*/*t2.nii"))
+t1ce_list = sorted(glob.glob(TRAIN_DATASET_PATH + "*/*t1ce.nii"))
+flair_list = sorted(glob.glob(TRAIN_DATASET_PATH + "*/*flair.nii"))
+mask_list = sorted(glob.glob(TRAIN_DATASET_PATH + "*/*seg.nii"))
+
+# Each volume generates 18 64x64x64x4 sub-volumes.
+# Total 369 volumes = 6642 sub volumes
+
+for img in range(5):
+    print("Now preparing image and mask number: ", img)
+
+    temp_image_t2 = nib.load(t2_list[img]).get_fdata()
+    temp_image_t2 = scaler.fit_transform(
+        temp_image_t2.reshape(-1, temp_image_t2.shape[-1])
+    ).reshape(temp_image_t2.shape)
+
+    temp_image_t1ce = nib.load(t1ce_list[img]).get_fdata()
+    temp_image_t1ce = scaler.fit_transform(
+        temp_image_t2.reshape(-1, temp_image_t1ce.shape[-1])
+    ).reshape(temp_image_t1ce.shape)
+
+    temp_image_flair = nib.load(flair_list[img]).get_fdata()
+    temp_image_flair = scaler.fit_transform(
+        temp_image_flair.reshape(-1, temp_image_flair.shape[-1])
+    ).reshape(temp_image_flair.shape)
+
+    temp_mask = nib.load(mask_list[img]).get_fdata()
+    temp_mask = temp_mask.astype(np.uint8)
+    temp_mask[temp_mask == 4] = 3  # reaasign mask values 4 to 3
+
+    temp_combined_images = np.stack(
+        [temp_image_flair, temp_image_t1ce, temp_image_t2], axis=3
+    )
+
+    # Crop to a size to be divisible by 64 so we can later extract 64x64x64 patches
+    # Cropping x,y,z
+    temp_combined_images = temp_combined_images[56:184, 56:184, 13:141]
+    temp_mask = temp_mask[56:184, 56:184, 13:141]
+    # print("Temp image shape = ", temp_combined_images.shape)
+    val, counts = np.unique(temp_mask, return_counts=True)
+
+    if (
+        1 - (counts[0] / counts.sum())
+    ) > 0.01:  # At least 1% useful volume with labels that are not 0
+        print("Save Me")
+        temp_mask = to_categorical(temp_mask, num_classes=4)
+        np.save(
+            "BraTS2020_TrainingData/input_data_3channels/images/image_"
+            + str(img)
+            + ".npy",
+            temp_combined_images,
+        )
+        np.save(
+            "BraTS2020_TrainingData/input_data_3channels/masks/mask_"
+            + str(img)
+            + ".npy",
+            temp_mask,
+        )
+    else:
+        print("I am useless")
+
+##########################################################################
+# Reapet process for validation set
+### validation images lists
+# val_t1_list = sorted(glob.glob(VALIDATION_DATASET_PATH + "*/*t1.nii"))
+val_t2_list = sorted(glob.glob(VALIDATION_DATASET_PATH + "*/*t2.nii"))
+val_t1ce_list = sorted(glob.glob(VALIDATION_DATASET_PATH + "*/*t1ce.nii"))
+val_flair_list = sorted(glob.glob(VALIDATION_DATASET_PATH + "*/*flair.nii"))
+# val_mask_list = sorted(glob.glob(VALIDATION_DATASET_PATH + "*/*seg.nii"))
+
+
+for val_img in range(5):
+    print("Now preparing validation image: ", val_img)
+
+    val_temp_image_t2 = nib.load(val_t2_list[val_img]).get_fdata()
+    val_temp_image_t2 = scaler.fit_transform(
+        val_temp_image_t2.reshape(-1, val_temp_image_t2.shape[-1])
+    ).reshape(val_temp_image_t2.shape)
+
+    val_temp_image_t1ce = nib.load(val_t1ce_list[val_img]).get_fdata()
+    val_temp_image_t1ce = scaler.fit_transform(
+        val_temp_image_t1ce.reshape(-1, val_temp_image_t1ce.shape[-1])
+    ).reshape(val_temp_image_t1ce.shape)
+
+    val_temp_image_flair = nib.load(val_flair_list[val_img]).get_fdata()
+    val_temp_image_flair = scaler.fit_transform(
+        val_temp_image_flair.reshape(-1, val_temp_image_flair.shape[-1])
+    ).reshape(val_temp_image_flair.shape)
+
+    val_temp_combined_images = np.stack(
+        [val_temp_image_flair, val_temp_image_t1ce, val_temp_image_t2], axis=3
+    )
+
+    # Crop to a size to be divisible by 64 so we can later extract 64x64x64 patches
+    # Cropping x,y,z
+    val_temp_combined_images = val_temp_combined_images[56:184, 56:184, 13:141]
+    # print("Val image shape = ", val_temp_combined_images.shape)
+    np.save(
+        "BraTS2020_ValidationData/input_data_3channels/images/image_"
+        + str(val_img)
+        + ".npy",
+        val_temp_combined_images,
+    )
