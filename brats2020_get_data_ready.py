@@ -173,7 +173,7 @@ mask_list = sorted(glob.glob(TRAIN_DATASET_PATH + "*/*seg.nii"))
 # Each volume generates 18 64x64x64x4 sub-volumes.
 # Total 369 volumes = 6642 sub volumes
 
-for img in range(5):
+for img in range(len(t2_list)):
     print("Now preparing image and mask number: ", img)
 
     temp_image_t2 = nib.load(t2_list[img]).get_fdata()
@@ -236,7 +236,7 @@ val_flair_list = sorted(glob.glob(VALIDATION_DATASET_PATH + "*/*flair.nii"))
 # val_mask_list = sorted(glob.glob(VALIDATION_DATASET_PATH + "*/*seg.nii"))
 
 
-for val_img in range(5):
+for val_img in range(len(val_t2_list)):
     print("Now preparing validation image: ", val_img)
 
     val_temp_image_t2 = nib.load(val_t2_list[val_img]).get_fdata()
